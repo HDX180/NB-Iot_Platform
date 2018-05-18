@@ -1,0 +1,55 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Master", "Master", "{0E8C169B-49BD-49F4-B575-A97A7768A24C}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DeviceManageServer", "src\main\DeviceManageServer.vcproj", "{3BA1D173-DC55-4244-AA67-8DD6B53A5212}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mod_SlaveManage", "src\mod_SlaveManage\mod_SlaveManage.vcproj", "{5A765330-2A0D-446D-9024-B70023B56C73}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Slave", "Slave", "{139E282E-D96D-4554-8762-E84DFD761C53}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DMSSlave", "src\slave\DMSSlave\DMSSlave.vcproj", "{9C5C9017-2BB8-4C85-ABB5-45CDE0B616B5}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mod_Scheduling", "src\slave\mod_Scheduling\mod_Scheduling.vcproj", "{E9F0BB73-B0C0-4D9F-9C5F-C6F589A62A47}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mod_DevicePluginAccess", "src\slave\mod_DevicePluginAccess\mod_DevicePluginAccess.vcproj", "{7AC450A2-E71A-4770-8B08-9FC2F5DB6DE1}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{3BA1D173-DC55-4244-AA67-8DD6B53A5212}.Debug|Win32.ActiveCfg = Debug|Win32
+		{3BA1D173-DC55-4244-AA67-8DD6B53A5212}.Debug|Win32.Build.0 = Debug|Win32
+		{3BA1D173-DC55-4244-AA67-8DD6B53A5212}.Release|Win32.ActiveCfg = Release|Win32
+		{3BA1D173-DC55-4244-AA67-8DD6B53A5212}.Release|Win32.Build.0 = Release|Win32
+		{5A765330-2A0D-446D-9024-B70023B56C73}.Debug|Win32.ActiveCfg = Debug|Win32
+		{5A765330-2A0D-446D-9024-B70023B56C73}.Debug|Win32.Build.0 = Debug|Win32
+		{5A765330-2A0D-446D-9024-B70023B56C73}.Release|Win32.ActiveCfg = Release|Win32
+		{5A765330-2A0D-446D-9024-B70023B56C73}.Release|Win32.Build.0 = Release|Win32
+		{9C5C9017-2BB8-4C85-ABB5-45CDE0B616B5}.Debug|Win32.ActiveCfg = Debug|Win32
+		{9C5C9017-2BB8-4C85-ABB5-45CDE0B616B5}.Debug|Win32.Build.0 = Debug|Win32
+		{9C5C9017-2BB8-4C85-ABB5-45CDE0B616B5}.Release|Win32.ActiveCfg = Release|Win32
+		{9C5C9017-2BB8-4C85-ABB5-45CDE0B616B5}.Release|Win32.Build.0 = Release|Win32
+		{E9F0BB73-B0C0-4D9F-9C5F-C6F589A62A47}.Debug|Win32.ActiveCfg = Debug|Win32
+		{E9F0BB73-B0C0-4D9F-9C5F-C6F589A62A47}.Debug|Win32.Build.0 = Debug|Win32
+		{E9F0BB73-B0C0-4D9F-9C5F-C6F589A62A47}.Release|Win32.ActiveCfg = Release|Win32
+		{E9F0BB73-B0C0-4D9F-9C5F-C6F589A62A47}.Release|Win32.Build.0 = Release|Win32
+		{7AC450A2-E71A-4770-8B08-9FC2F5DB6DE1}.Debug|Win32.ActiveCfg = Debug|Win32
+		{7AC450A2-E71A-4770-8B08-9FC2F5DB6DE1}.Debug|Win32.Build.0 = Debug|Win32
+		{7AC450A2-E71A-4770-8B08-9FC2F5DB6DE1}.Release|Win32.ActiveCfg = Release|Win32
+		{7AC450A2-E71A-4770-8B08-9FC2F5DB6DE1}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{3BA1D173-DC55-4244-AA67-8DD6B53A5212} = {0E8C169B-49BD-49F4-B575-A97A7768A24C}
+		{5A765330-2A0D-446D-9024-B70023B56C73} = {0E8C169B-49BD-49F4-B575-A97A7768A24C}
+		{9C5C9017-2BB8-4C85-ABB5-45CDE0B616B5} = {139E282E-D96D-4554-8762-E84DFD761C53}
+		{E9F0BB73-B0C0-4D9F-9C5F-C6F589A62A47} = {139E282E-D96D-4554-8762-E84DFD761C53}
+		{7AC450A2-E71A-4770-8B08-9FC2F5DB6DE1} = {139E282E-D96D-4554-8762-E84DFD761C53}
+	EndGlobalSection
+EndGlobal
