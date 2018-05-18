@@ -1,0 +1,2 @@
+./commonBase/win32/Debug/ServiceFramework/oraociei11.dll filter=lfs diff=lfs merge=lfs -text
+./commonBase/win32/Release/ServiceFramework/oraociei11.dll filter=lfs diff=lfs merge=lfs -text
