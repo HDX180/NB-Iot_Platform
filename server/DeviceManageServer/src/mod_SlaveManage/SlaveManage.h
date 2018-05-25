@@ -3,13 +3,13 @@
 
 #include "SlaveServer.h"
 
-#include <map>
+#include <vector>
 #include <queue>
 
 namespace XC
 {
-	//class CSlave;
-	typedef std::map<GSMemCommHandle,CSlave*> SlaveList;
+
+	typedef std::vector<CSlave*> SlaveList;
 	class CSlaveManage
 	{
 	public:
@@ -111,9 +111,9 @@ namespace XC
 		}
 
 		//-------------------------
-		GSMutex m_slaveMapMux;
-		SlaveList m_mapSlaveHandle;
-		CSlave* GetSlavePtr( GSMemCommHandle hChannel );
+		GSMutex m_slaveVecMux;
+		SlaveList m_vecSlaveHandle;
+		CSlave* GetSlavePtr( GSMemCommHandle hHandle );
 
 
 		//---------------------
@@ -125,7 +125,7 @@ namespace XC
 		static void TimerFunc( struct _SystemInfo* sys,TimerHandle timerID, void *pTimerParam );
 
 		// º”‘ÿslave
-		void LoadSlave(void);
+		void LoadSlave(int iSlaveNum);
 
 		// –∂‘ÿslave
 		void UnloadSlave( void );

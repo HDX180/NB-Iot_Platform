@@ -4,10 +4,11 @@ using namespace XC;
 
 
 //#define CMD_TIMEOUT 300000   // 5分钟
-#define UPDATE_DATA  240000    // 4分钟
+#define UPDATE_CACHE_INTERVAL  300000    // 5分钟
 
 CDevicePluginAccess::CDevicePluginAccess(void)
 {
+	m_bShutDown = TRUE;
 }
 
 CDevicePluginAccess::~CDevicePluginAccess()
@@ -17,7 +18,33 @@ CDevicePluginAccess::~CDevicePluginAccess()
 
 EnumErrorCode CDevicePluginAccess::Init( SystemInfo* sys )
 {
+
+	XC_ASSERT_RET_VAL(sys, ERR_MEMORY_EXCEPTION);
+	XC_ASSERT_RET_VAL(sys->log, ERR_MEMORY_EXCEPTION);
+	XC_ASSERT_RET_VAL(sys->sendMsg, ERR_MEMORY_EXCEPTION);
+	XC_ASSERT_RET_VAL(sys->getConfig, ERR_MEMORY_EXCEPTION);
+	XC_ASSERT_RET_VAL(sys->startTimer, ERR_MEMORY_EXCEPTION);
+	XC_ASSERT_RET_VAL(sys->stopTimer, ERR_MEMORY_EXCEPTION);
+	XC_ASSERT_RET_VAL(sys->notifyModMessage, ERR_MEMORY_EXCEPTION);
+	XC_ASSERT_RET_VAL(m_bShutDown, ERR_MEMORY_EXCEPTION);
+
+
+	m_pLog = sys->log;
+	m_pSendMsg = sys->sendMsg;
+	m_pGetConfig = sys->getConfig;
+	m_pStartTimer = sys->startTimer;
+	m_pStopTimer = sys->stopTimer;
+	m_pNotifyModMsg = sys->notifyModMessage;
+
 	//加载设备插件
+
+	void *pData = NULL;
+	Int32 iLen = 0;
+	sys->getUserDataFunc(&pData,&iLen);
+	XC_ASSERT_RET_VAL(pData, ERR_PARAMETER_ERROR);
+	m_strSlaveName = (char*)pData;
+
+
 	return ERR_SUCCESS;
 }
 
@@ -26,18 +53,56 @@ void CDevicePluginAccess::Uninit( void )
 	//卸载设备插件
 }
 
+int CDevicePluginAccess::DevCodeToIndex(const int iDevCodeID)
+{
+	return iDevCodeID - XCStrUtil::ToNumber<int>(m_strSlaveName) * 1000;
+}
+
 void CDevicePluginAccess::HandleMasterMsg(void)
 {
-	//如果是获取普通数据请求
+	void *pData = NULL;
+	Int32 iLen = 0;
 
-		//从缓存数据返回
+	while ( PopCmd(&pData,iLen) )
+	{
+		if ( m_bShutDown )
+		{
+			FreeCmd(pData);
+			break;
+		}
+		int iDevCodeID = 0, iCommand = 0;
+
+		int iDevIndex = DevCodeToIndex(iDevCodeID);
+
+		//如果是获取普通数据请求
+		if (DEV_GET_HEALTHDATA == iCommand)
+		{
+			StruDevData *pCacheData = m_devCacheData[iDevIndex];
+			if (pCacheData)//从缓存数据返回
+			{
+				
+			}
+			else//若无则调用设备接口获取，返回并加到缓存中
+			{
+				
+			}
+			
+		}
+		else//如果是其他请求
+		{
+			//调用设备接口
 
 
-		//若无则调用设备接口获取，返回并加到缓存中
+		}
 
-	//如果是其他请求
+		//封装协议..
 
-		//调用设备接口
+		StruProCommData stProCommData;
+		if ( m_pNotifyModMsg(MOD_NAME_DEVICEPLUGINACCESS,MESSAGE_FROM_MASTER,&stProCommData,NULL) != SUCCEED )
+		{
+			TRACE_LOG("m_pNotifyModMsg() fail! modname: "<<MOD_NAME_SCHEDULING<<", slave name: "<<m_strSlaveName, LOGGER_LEVEL_ERROR, true);
+		}
+	}
 }
 
 void CDevicePluginAccess::ThreadHandleRequestFunc( GSThread &thread, void *pThreadData )
@@ -123,27 +188,42 @@ EnumErrorCode CDevicePluginAccess::Start( void )
 	//	return ERR_INIT_FAIL;
 	//}
 
-	StartTimer(UPDATE_DATA, OnTimeUpdateFunc, this, &m_pTimerID);
+	//StartTimer(UPDATE_CACHE_INTERVAL, OnTimeUpdateFunc, this, &m_pTimerID);
+	if ( !m_ThreadUpdateCache.Start(OnTimeUpdateFunc,this) )
+	{
+		TRACE_LOG("启动处理Master请求调度线程 失败! ",LOGGER_LEVEL_ERROR,true);
+		return ERR_INIT_FAIL;
+	}
 
 	m_bShutDown = FALSE;
 
 	return ERR_SUCCESS;
 }
 
-void CDevicePluginAccess::OnTimeUpdateFunc( struct _SystemInfo* sys,TimerHandle timerID, void *pTimerParam )
+void CDevicePluginAccess::OnTimeUpdateFunc( GSThread &thread, void *pThreadData )
 {
-	XC_ASSERT_RET(pTimerParam);
-	CDevicePluginAccess *pThis = (CDevicePluginAccess*)pTimerParam;
+	XC_ASSERT_RET(pThreadData);
+	CDevicePluginAccess *pThis = (CDevicePluginAccess*)pThreadData;
 
 	pThis->UpdateCacheData();
 }
 
 void CDevicePluginAccess::UpdateCacheData(void)
 {
-	//调用设备插件获取
+	for (int i = 0; i < MAX_SLAVE_DEVNUM; ++i)
+	{
+		//GSAutoMutex csAuto(m_devCacheData[i]->cache_row_mutex);
+		//if (m_devCacheData[i]->upDateTime.GetElapsed() >= UPDATE_CACHE_INTERVAL )
+		{	
+			//调用设备插件获取
+			
+			
+
+			//跟新缓存数据
 
 
-	//跟新缓存数据
+		}
+	}
 }
 
 void CDevicePluginAccess::StopTimer( TimerHandle pTimerID )
@@ -166,7 +246,10 @@ void CDevicePluginAccess::Stop( void )
 	//m_ThreadCmdTimeOut.Stop();
 	//m_ThreadCmdTimeOut.Join();
 
-	StopTimer(m_pTimerID);
+	//StopTimer(m_pTimerID);
+
+	m_ThreadUpdateCache.Stop();
+	m_ThreadUpdateCache.Join();
 
 	m_bShutDown = TRUE;
 }

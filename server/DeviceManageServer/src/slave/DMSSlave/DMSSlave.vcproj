@@ -17,8 +17,8 @@
 	<Configurations>
 		<Configuration
 			Name="Debug|Win32"
-			OutputDirectory="../../obj/link/slave/$(ProjectName)"
-			IntermediateDirectory="../../obj/compile/slave/$(ProjectName)"
+			OutputDirectory="../../../obj/link/slave/$(ProjectName)D"
+			IntermediateDirectory="../../../obj/compile/slave/$(ProjectName)D"
 			ConfigurationType="1"
 			CharacterSet="2"
 			>

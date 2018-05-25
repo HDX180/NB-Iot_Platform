@@ -18,7 +18,7 @@ namespace XC
 	class CSlave 
 	{
 	public:
-		CSlave(void);
+		CSlave(XCString strSlaveName);
 
 		~CSlave(void);
 
@@ -46,6 +46,8 @@ namespace XC
 
 	private:
 		bool OpenSlaveProcess( const XCString& strSlaveName );
+
+		void CloseSlaveProcess();
 
 	};
 

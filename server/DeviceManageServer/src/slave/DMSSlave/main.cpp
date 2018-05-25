@@ -39,20 +39,21 @@ static void WaitForCommand( void )
 
 int main( int argc, char *argv[] )
 {
-	if ( argc < 2 )
+	/*if ( argc < 2 )
 	{
 		xc_printf(" DMSSlave::main() fail! param error! \n");
 		XCAssert(0);
 		return -1;
-	}
+	}*/
 
 	char *szName = argv[1];
-	std::string strCfg = szName;
-	strCfg += "_config.ini";
+	//std::string strCfg = szName;
+	//strCfg += "_config.ini";
 
 	bool bRet = true;
-	if ( CFrameWork::GetInstance()->Init("config.ini", NULL, 0, false, true) == 0 )
+	if ( CFrameWork::GetInstance()->Init("config.ini",szName,strlen(szName)+1) == 0  )
 	{
+		printf( "%s \n" , szName);
 		if ( CFrameWork::GetInstance()->Start() != 0 )
 		{
 			printf( "CFrameWork::GetInstance()->Start() fail! \n");

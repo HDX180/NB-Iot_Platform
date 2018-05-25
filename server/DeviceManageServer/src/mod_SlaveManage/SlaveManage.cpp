@@ -2,10 +2,10 @@
 #include "SlaveServer.h"
 using namespace XC;
 
-
 CSlaveManage::CSlaveManage()
 {
-
+	m_bShutDown = TRUE;
+	m_vecSlaveHandle.reserve(MAX_SLAVE_NUM);
 }
 
 CSlaveManage::~CSlaveManage()
@@ -18,6 +18,7 @@ void CSlaveManage::MessageCallback( GSMemCommHandle hChannel, void *pData, int i
 	XC_ASSERT_RET(pUserData);
 	CSlaveManage *pSlaveManage = (CSlaveManage *)pUserData;
 	CSlave *pThis = pSlaveManage->GetSlavePtr(hChannel);
+	XC_ASSERT_RET(pThis);
 
 	TRACE_LOG("<recv msg: "<<pData<<", from"<<pThis->m_strSlaveName<<">", LOGGER_LEVEL_INFO, true);
 
@@ -43,12 +44,17 @@ EnumErrorCode CSlaveManage::Init(SystemInfo* sys)
 	m_pStopTimer = sys->stopTimer;
 	m_pNotifyModMsg = sys->notifyModMessage;
 
+	if ( GSMemComm_Init(EventCallback, this, MessageCallback, this) != GSMEMCOMM_SUCCESS )
+	{
+		TRACE_LOG("GSMemComm_Init fail ", LOGGER_LEVEL_INFO, true);
+	}
+
 	return ERR_SUCCESS;
 }
 
 void CSlaveManage::Uninit()
 {
-
+	GSMemComm_Cleanup();
 }
 
 EnumErrorCode CSlaveManage::Start()
@@ -67,7 +73,7 @@ EnumErrorCode CSlaveManage::Start()
 	int slaveNum = 0;
 	if( !GetDevNumFromDB(slaveNum) )
 	{
-		LoadSlave();
+		LoadSlave(slaveNum);
 	}
 
 	// 启动Slave状态管理定时器
@@ -110,36 +116,65 @@ EnumErrorCode CSlaveManage::HandleRequest( const MessageInfo& msg )
 	if ( m_bShutDown )
 		return ERR_SYSTEM_SHUTDOWN;
 
+	// 解析 ...
+	const char* szCmdType = msg.GetUserData("......");
+	const char* szDevCodeID = msg.GetUserData("....");
 
-	// 从pData中解析 ...
+	XC_ASSERT_RET_VAL(szCmdType,ERR_PARAMETER_ERROR);
+	XC_ASSERT_RET_VAL(szDevCodeID,ERR_PARAMETER_ERROR);
 
-
+	TRACE_LOG("< In cmd:"<<szCmdType<<",DevCodeID:"<<szDevCodeID<<", sn:"<<msg.GetSeq()<<">", LOGGER_LEVEL_INFO, true);
+	
 	// 检测最大接入 ...
 
 
 	//slave调度算法
+	
+	int iSlaveIndex = XCStrUtil::ToNumber<int>(szDevCodeID) / MAX_SLAVE_DEVNUM;
+	CSlave* pSlave = m_vecSlaveHandle[iSlaveIndex - 1];
+	
+	if (!pSlave)
+	{
+		TRACE_LOG("<没找到可调度的slave, 创建新slave"<<iSlaveIndex<<">", LOGGER_LEVEL_INFO, true);
+		CSlave *pSlave = new CSlave(XCStrUtil::ToString(iSlaveIndex));
+		XCAbort(pSlave);
+		EnumErrorCode eRet = pSlave->Init();
+		if ( eRet != ERR_SUCCESS )
+		{
+			TRACE_LOG("LoadSlave() Slave: "<<pSlave->m_strSlaveName<<" 启动失败",LOGGER_LEVEL_ERROR,true);
+			XCAssert(0);
+			return ERR_MEMORY_EXCEPTION;
+		}
 
-
-	//pSlave->SendMsg(pData,iLen);
-
-
+		GSAutoMutex csAuto(m_slaveVecMux);
+		m_vecSlaveHandle[iSlaveIndex - 1] = pSlave;
+	}
+	else
+	{
+		if (!pSlave->IsOnline())
+		{
+			TRACE_LOG("<调度的slave不在线, 稍候重试", LOGGER_LEVEL_ERROR, true);
+			return ERR_SERVER_BUSY;
+		}
+		pSlave->SendMsg((void *)msg.GetContent(),msg.GetContentSize());
+	}
+	
 	return ERR_SUCCESS;
 }
 
 void CSlaveManage::TestSlaveStatus( void )
 {
-	GSAutoMutex csAuto(m_slaveMapMux);
+	GSAutoMutex csAuto(m_slaveVecMux);
 
-	for ( SlaveList::iterator iter = m_mapSlaveHandle.begin();
-		iter != m_mapSlaveHandle.end();
+	for ( SlaveList::iterator iter = m_vecSlaveHandle.begin();
+		iter != m_vecSlaveHandle.end();
 		iter ++ )
 	{
-		CSlave* pSlave = (*iter).second;
-		if ( !pSlave->IsOnline() )
+		if ( !(*iter)->IsOnline() )
 		{
-			if ( pSlave->Init() != ERR_SUCCESS )
+			if ( (*iter)->Init() != ERR_SUCCESS )
 			{
-				TRACE_LOG("TestSlaveStatus() Slave: "<<pSlave->m_strSlaveName<<" 重新启动失败,待下次重试!",LOGGER_LEVEL_ERROR,true);
+				TRACE_LOG("TestSlaveStatus() Slave: "<<(*iter)->m_strSlaveName<<" 重新启动失败,待下次重试!",LOGGER_LEVEL_ERROR,true);
 				XCAssert(0);
 			}
 		}
@@ -148,6 +183,7 @@ void CSlaveManage::TestSlaveStatus( void )
 
 EnumErrorCode CSlaveManage::GetDevNumFromDB(int &SlaveNum)
 {
+	SlaveNum = 1;
 	return ERR_SUCCESS;
 }
 
@@ -245,15 +281,19 @@ void CSlaveManage::TraceOut( const XCString& strMsg, Int32 iLevel, bool bOnScree
 }
 
 
-CSlave* CSlaveManage::GetSlavePtr( GSMemCommHandle hChannel )
+CSlave* CSlaveManage::GetSlavePtr( GSMemCommHandle hHandle )
 {
 	CSlave *p = NULL;
 
-	GSAutoMutex csAuto(m_slaveMapMux);
-	std::map<GSMemCommHandle,CSlave*>::iterator iter = m_mapSlaveHandle.find(hChannel);
-	if ( iter != m_mapSlaveHandle.end() )
-		p = (*iter).second;
-
+	GSAutoMutex csAuto(m_slaveVecMux);
+	for ( SlaveList::iterator iter = m_vecSlaveHandle.begin();
+		iter != m_vecSlaveHandle.end();
+		iter ++ )
+	{
+		p = *iter;
+		if (hHandle == p->m_hChn)
+			break;;
+	}
 	return p;
 }
 
@@ -284,37 +324,37 @@ void CSlaveManage::EventCallback( GSMemCommHandle hChannel, int iStatus, void *p
 	}
 }
 
-void CSlaveManage::LoadSlave( void )
+void CSlaveManage::LoadSlave( int iSlaveNum )
 {
-	if ( GSMemComm_Init(EventCallback, NULL, MessageCallback, this) != GSMEMCOMM_SUCCESS )
+	for(int i = 1; i <= iSlaveNum; ++i)
 	{
-		TRACE_LOG("GSMemComm_Init fail ", LOGGER_LEVEL_INFO, true);
-	}
+		CSlave *pSlave = new CSlave(XCStrUtil::ToString(i));
+		XCAbort(pSlave);
+		EnumErrorCode eRet = pSlave->Init();
+		if ( eRet != ERR_SUCCESS )
+		{
+			TRACE_LOG("LoadSlave() Slave: "<<pSlave->m_strSlaveName<<" 启动失败",LOGGER_LEVEL_ERROR,true);
+			XCAssert(0);
+			break;
+		}
 
-	CSlave *pSlave = new CSlave();
-	XCAbort(pSlave);
-	EnumErrorCode eRet = pSlave->Init();
-	if ( eRet != ERR_SUCCESS )
-	{
-		TRACE_LOG("LoadSlave() Slave: "<<pSlave->m_strSlaveName<<" 启动失败",LOGGER_LEVEL_ERROR,true);
-		XCAssert(0);
+		GSAutoMutex csAuto(m_slaveVecMux);
+		m_vecSlaveHandle.push_back(pSlave);
 	}
-
-	GSAutoMutex csAuto(m_slaveMapMux);
-	m_mapSlaveHandle[pSlave->m_hChn] = pSlave;
 }
 
 void CSlaveManage::UnloadSlave( void )
 {
-	GSAutoMutex csAuto(m_slaveMapMux);
+	GSAutoMutex csAuto(m_slaveVecMux);
 
-	for ( SlaveList::iterator iter = m_mapSlaveHandle.begin();
-		iter != m_mapSlaveHandle.end();
+	for ( SlaveList::iterator iter = m_vecSlaveHandle.begin();
+		iter != m_vecSlaveHandle.end();
 		iter ++ )
 	{
-		(*iter).second->UnInit();
+		(*iter)->UnInit();
+		delete *iter;
 	}
 
-	m_mapSlaveHandle.clear();
+	m_vecSlaveHandle.clear();
 }
 

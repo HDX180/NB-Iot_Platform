@@ -4,7 +4,7 @@ using namespace XC;
 
 CScheduling::CScheduling(void)
 {
-
+	m_bShutDown = TRUE;
 }
 
 CScheduling::~CScheduling(void)
@@ -102,10 +102,9 @@ EnumErrorCode CScheduling::Start(void)
 	LOG_FUNCTION("CProcessComm::Start()");
 
 	XC_ASSERT_RET_VAL(!m_hChn, ERR_MEMORY_EXCEPTION);
-
 	if ( GSMemComm_OpenChannel(&m_hChn, m_strSlaveName.c_str()) != GSMEMCOMM_SUCCESS )
 	{
-		TRACE_LOG("CProcessComm::Start() GSMemComm_OpenChannel fail! slave name: "<<m_strSlaveName, LOGGER_LEVEL_ERROR, true);
+		TRACE_LOG("CScheduling::Start() GSMemComm_OpenChannel fail! slave name: "<<m_strSlaveName, LOGGER_LEVEL_ERROR, true);
 		return ERR_CALL_INTERFACE_FAIL;
 	}
 

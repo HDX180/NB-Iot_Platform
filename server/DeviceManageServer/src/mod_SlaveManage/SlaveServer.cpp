@@ -4,9 +4,10 @@
 
 using namespace XC;
 
-CSlave::CSlave(void)
+CSlave::CSlave(XCString strSlaveName)
 {
-
+	m_strSlaveName = strSlaveName;
+	m_eStatus = SLAVE_INIT;
 }
 
 CSlave::~CSlave(void)
@@ -33,9 +34,37 @@ EnumErrorCode CSlave::Init()
 	return ERR_SUCCESS;
 }
 
+void CSlave::CloseSlaveProcess()
+{
+	XC_ASSERT_RET(m_lProcessID>0);
+	GSCloseProcess(m_lProcessID);
+
+	TRACE_LOG("CSlave::TestCloseProcess() ProcessID["<<m_lProcessID<<"]", LOGGER_LEVEL_INFO, false);
+
+	for ( Int32 i=0; i<10; i++ )
+	{
+		if ( !GSIsProcessAlive(m_lProcessID) )
+		{
+			m_lProcessID = -1;
+			break;
+		}
+		GSSleep(500);
+	}
+
+	if ( m_lProcessID != -1 )
+	{
+		GSTerminateProcess(m_lProcessID);
+		m_lProcessID = -1;
+	}
+}
+
 void CSlave::UnInit()
 {
+	CloseSlaveProcess();
+
 	GSMemComm_DestroyChannel(m_hChn);
+
+	SetSlaveStatus(SLAVE_OFFLINE);
 }
 
 bool CSlave::OpenSlaveProcess( const XCString& strSlaveName )
@@ -45,7 +74,7 @@ bool CSlave::OpenSlaveProcess( const XCString& strSlaveName )
 #ifdef _WIN32
 
 #ifdef _DEBUG
-	strSlaveAppPath += "dgw_slave/DMSSlaveD.exe";
+	strSlaveAppPath += "dms_slave/DMSSlaveD.exe";
 #else
 	strSlaveAppPath += "dgw_slave/DMSSlave.exe";
 #endif
@@ -70,7 +99,7 @@ bool CSlave::OpenSlaveProcess( const XCString& strSlaveName )
 
 BOOL CSlave::IsOnline( void )
 {
-	return m_eStatus == SLAVE_ONLINE;
+	return m_eStatus != SLAVE_OFFLINE;
 }
 
 void CSlave::SetSlaveStatus( EnumSlaveStatus eStatus )
