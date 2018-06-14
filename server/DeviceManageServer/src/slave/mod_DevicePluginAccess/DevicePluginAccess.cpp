@@ -1,4 +1,6 @@
 #include "DevicePluginAccess.h"
+#include "GSDBAccessApi.h"
+#include <time.h>
 
 using namespace XC;
 
@@ -6,7 +8,7 @@ using namespace XC;
 //#define CMD_TIMEOUT 300000   // 5分钟
 #define UPDATE_CACHE_INTERVAL  300000    // 5分钟
 
-CDevicePluginAccess::CDevicePluginAccess(void)
+CDevicePluginAccess::CDevicePluginAccess():m_devCacheData(MAX_SLAVE_DEVNUM, NULL)
 {
 	m_bShutDown = TRUE;
 }
@@ -28,7 +30,7 @@ EnumErrorCode CDevicePluginAccess::Init( SystemInfo* sys )
 	XC_ASSERT_RET_VAL(sys->notifyModMessage, ERR_MEMORY_EXCEPTION);
 	XC_ASSERT_RET_VAL(m_bShutDown, ERR_MEMORY_EXCEPTION);
 
-
+	m_sys = sys;
 	m_pLog = sys->log;
 	m_pSendMsg = sys->sendMsg;
 	m_pGetConfig = sys->getConfig;
@@ -63,13 +65,8 @@ void CDevicePluginAccess::HandleMasterMsg(void)
 	void *pData = NULL;
 	Int32 iLen = 0;
 
-	while ( PopCmd(&pData,iLen) )
+	while ( !m_bShutDown && PopCmd(&pData,iLen) )
 	{
-		if ( m_bShutDown )
-		{
-			FreeCmd(pData);
-			break;
-		}
 		int iDevCodeID = 0, iCommand = 0;
 
 		int iDevIndex = DevCodeToIndex(iDevCodeID);
@@ -80,18 +77,21 @@ void CDevicePluginAccess::HandleMasterMsg(void)
 			StruDevData *pCacheData = m_devCacheData[iDevIndex];
 			if (pCacheData)//从缓存数据返回
 			{
-				
+
 			}
-			else//若无则调用设备接口获取，返回并加到缓存中
+			else//若无则调用设备接口获取
 			{
 				
+
+				//并加到缓存中
+				//pCacheData->cache_row_mutex.Lock();
 			}
 			
 		}
 		else//如果是其他请求
 		{
 			//调用设备接口
-
+			
 
 		}
 
@@ -117,6 +117,11 @@ void CDevicePluginAccess::ThreadHandleRequestFunc( GSThread &thread, void *pThre
 		if ( pThis->IsReqListEmpty() )   // 空则休眠...
 			GSSleep(10);
 	}
+}
+
+bool CDevicePluginAccess::GreaterSort(StruDevData* a,StruDevData* b)
+{
+	return a->iDevCodeid > b->iDevCodeid;
 }
 
 void CDevicePluginAccess::TraceOut( const XCString& strMsg, Int32 iLevel, bool bOnScreen )
@@ -155,7 +160,7 @@ EnumErrorCode CDevicePluginAccess::StartTimer( Int32 nIntervalMS, FunPtrTimerCal
 //
 //	return m_csTimeMeter.GetElapsed()>CMD_TIMEOUT; 
 //}
-//
+
 //void CDevicePluginAccess::ThreadHandleCmdTimeOutFunc( GSThread &thread, void *pThreadData )
 //{
 //	XC_ASSERT_RET(pThreadData);
@@ -188,42 +193,108 @@ EnumErrorCode CDevicePluginAccess::Start( void )
 	//	return ERR_INIT_FAIL;
 	//}
 
-	//StartTimer(UPDATE_CACHE_INTERVAL, OnTimeUpdateFunc, this, &m_pTimerID);
-	if ( !m_ThreadUpdateCache.Start(OnTimeUpdateFunc,this) )
+	StartTimer(UPDATE_CACHE_INTERVAL, OnTimeUpdateFunc, this, &m_pTimerID);
+	//if ( !m_ThreadUpdateCache.Start(OnTimeUpdateFunc,this) )
+	//{
+	//	TRACE_LOG("启动处理Master请求调度线程 失败! ",LOGGER_LEVEL_ERROR,true);
+	//	return ERR_INIT_FAIL;
+	//}
+
+	if ( !m_ThreadUploadDBData.Start(ThreadUploadDBDataFunc,this) )
 	{
-		TRACE_LOG("启动处理Master请求调度线程 失败! ",LOGGER_LEVEL_ERROR,true);
+		TRACE_LOG("启动处理上传数据中心调度线程 失败! ",LOGGER_LEVEL_ERROR,true);
 		return ERR_INIT_FAIL;
 	}
+
 
 	m_bShutDown = FALSE;
 
 	return ERR_SUCCESS;
 }
 
-void CDevicePluginAccess::OnTimeUpdateFunc( GSThread &thread, void *pThreadData )
+void CDevicePluginAccess::ThreadUploadDBDataFunc( GSThread &thread, void *pThreadData )
 {
 	XC_ASSERT_RET(pThreadData);
 	CDevicePluginAccess *pThis = (CDevicePluginAccess*)pThreadData;
 
-	pThis->UpdateCacheData();
+	while ( !thread.TestExit() )
+	{
+		pThis->UploadDevDataToDB();
+
+		if ( pThis->IsDevCacheListEmpty() )   // 空则休眠...
+			GSSleep(1000);
+	}
+}
+
+void CDevicePluginAccess::OnTimeUpdateFunc( struct _SystemInfo* sys,TimerHandle timerID, void *pTimerParam )
+{
+	XC_ASSERT_RET(pTimerParam);
+	CDevicePluginAccess *pThis = (CDevicePluginAccess*)pTimerParam;
+	
+	if ( !pThis->m_bShutDown )
+		pThis->UpdateCacheData();
+
 }
 
 void CDevicePluginAccess::UpdateCacheData(void)
 {
+	
 	for (int i = 0; i < MAX_SLAVE_DEVNUM; ++i)
 	{
+		
+		StruDevData strDevData;
+		//调用设备插件获取
+			
+
+		//跟新实时缓存数据
 		//GSAutoMutex csAuto(m_devCacheData[i]->cache_row_mutex);
-		//if (m_devCacheData[i]->upDateTime.GetElapsed() >= UPDATE_CACHE_INTERVAL )
-		{	
-			//调用设备插件获取
-			
-			
-
-			//跟新缓存数据
 
 
-		}
+		//加载到设备时间点数据缓冲区 
+		AddDevDataTimeCache(strDevData);		
 	}
+
+}
+
+void CDevicePluginAccess::AddDevDataTimeCache(const StruDevData& _strDevData)
+{
+	time_t time_seconds = time(NULL);
+	struct tm* now_time = localtime(&time_seconds);
+	if(iCurrTime < now_time->tm_hour)
+	{
+		GSAutoMutex csAuto(m_csMutexDevTimeDataList);
+		m_devCacheTimeData.push_back(new StruDevData(_strDevData));
+	}
+}
+
+void CDevicePluginAccess::UploadDevDataToDB()
+{
+	GSAutoMutex csAuto(m_csMutexDevTimeDataList);
+
+	sort(m_devCacheTimeData.begin(), m_devCacheTimeData.end(), GreaterSort);
+
+	//GSIConnection *pDBConnect = NULL;
+	//Int32 iErr = m_sys->getDBConnection(&pDBConnect);
+	//if ( iErr )
+	//{
+	//	TRACE_LOG(__FUNCTION__<<"getDBConnection fail! err:"<<iErr,LOGGER_LEVEL_ERROR,true);
+	//	return ;
+	//}
+
+	////....根据codeid分区或分表插入
+
+	//XCString strSql;
+	//XCStrUtil::Format(strSql, "INSERT INTO TB_DEVDATA VALUES(%d)", strDevData.iTemprature);
+	//if(!pDBConnect->ExecuteSql(strSql.c_str()))
+	//{
+	//	TRACE_LOG(__FUNCTION__<<" ExecuteSql fail,sql: "<<strSql<<",Errcode: "<<pDBConnect->GetErrorCode()
+	//		<<",Errmsg: "<<pDBConnect->GetErrorMessage(),LOGGER_LEVEL_ERROR,true);
+	//	m_sys->releaseDBConnection(&pDBConnect);
+	//	return ;
+	//}
+
+	//m_sys->releaseDBConnection(&pDBConnect);
+
 }
 
 void CDevicePluginAccess::StopTimer( TimerHandle pTimerID )
@@ -239,6 +310,7 @@ void CDevicePluginAccess::StopTimer( TimerHandle pTimerID )
 void CDevicePluginAccess::Stop( void )
 {
 	LOG_FUNCTION("CDevicePluginAccess::Stop()");
+	m_bShutDown = TRUE;
 
 	m_ThreadHandleReq.Stop();
 	m_ThreadHandleReq.Join();
@@ -246,12 +318,15 @@ void CDevicePluginAccess::Stop( void )
 	//m_ThreadCmdTimeOut.Stop();
 	//m_ThreadCmdTimeOut.Join();
 
-	//StopTimer(m_pTimerID);
+	StopTimer(m_pTimerID);
 
-	m_ThreadUpdateCache.Stop();
-	m_ThreadUpdateCache.Join();
+	//m_ThreadUpdateCache.Stop();
+	//m_ThreadUpdateCache.Join();
 
-	m_bShutDown = TRUE;
+	void *pData = NULL;
+	Int32 iLen = 0;
+	while ( PopCmd(&pData,iLen) )
+		FreeCmd(pData);
 }
 
 void CDevicePluginAccess::HandleRequest( StruProCommData *pRequest )

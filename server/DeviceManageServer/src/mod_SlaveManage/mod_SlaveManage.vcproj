@@ -40,7 +40,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="../../../../commonBase/win32/Debug/ServiceFramework;../../../CommonInclude;../../../../commonBase/win32/Debug/Foundation;../../../../commonBase/win32/Debug/MemComm;../common;../../../../commonBase/include"
+				AdditionalIncludeDirectories="../../../../commonBase/win32/Debug/ServiceFramework;../../../CommonInclude;../../../../commonBase/win32/Debug/Foundation;../../../../commonBase/win32/Debug/MemComm;../common;../../../../commonBase/include;../../../../commonBase/win32/Debug/DBAccess"
 				PreprocessorDefinitions="MOD_SLAVEMANAGE_EXPORTS"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -59,8 +59,8 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="GSFoundationD.lib ServiceFrameworkD.lib GSMemCommD.lib"
-				AdditionalLibraryDirectories="../../../../commonBase/win32/Debug/Foundation;../../../../commonBase/win32/Debug/ServiceFramework;../../../../commonBase/win32/Debug/MemComm"
+				AdditionalDependencies="GSFoundationD.lib ServiceFrameworkD.lib GSMemCommD.lib GSDBAccessD.lib"
+				AdditionalLibraryDirectories="../../../../commonBase/win32/Debug/Foundation;../../../../commonBase/win32/Debug/ServiceFramework;../../../../commonBase/win32/Debug/MemComm;../../../../commonBase/win32/Debug/DBAccess"
 				GenerateDebugInformation="true"
 				TargetMachine="1"
 			/>

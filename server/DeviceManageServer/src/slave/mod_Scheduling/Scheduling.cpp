@@ -38,7 +38,9 @@ void CScheduling::EventCallback( GSMemCommHandle hChannel, int iStatus, void *pU
 void CScheduling::MessageCallback( GSMemCommHandle hChannel, void *pData, int iLen, void *pUserData )
 {
 	XC_ASSERT_RET(pUserData);
+
 	CScheduling *pThis = (CScheduling*)pUserData;
+	TRACE_LOG("< Slave " << pThis->m_strSlaveName << " recv msg: "<<pData<<" >", LOGGER_LEVEL_INFO, true);
 
 	pThis->OnMessageCBFun(hChannel, pData, iLen);
 }
@@ -73,11 +75,11 @@ EnumErrorCode CScheduling::Init( SystemInfo* sys )
 	m_pStopTimer = sys->stopTimer;
 	m_pNotifyModMsg = sys->notifyModMessage;
 
-	LOG_FUNCTION("CProcessComm::Init()");
+	LOG_FUNCTION("CScheduling::Init()");
 
 	if ( GSMemComm_Init(EventCallback,this,MessageCallback,this) != GSMEMCOMM_SUCCESS )
 	{
-		TRACE_LOG("CProcessComm::Init() GSMemComm_Init fail!", LOGGER_LEVEL_ERROR, true);
+		TRACE_LOG("CScheduling::Init() GSMemComm_Init fail!", LOGGER_LEVEL_ERROR, true);
 		return ERR_INIT_FAIL;
 	}
 
@@ -93,13 +95,13 @@ EnumErrorCode CScheduling::Init( SystemInfo* sys )
 
 void CScheduling::Uninit(void)
 {
-	LOG_FUNCTION("CProcessComm::Uninit()");
+	LOG_FUNCTION("CScheduling::Uninit()");
 	GSMemComm_Cleanup();
 }
 
 EnumErrorCode CScheduling::Start(void)
 {
-	LOG_FUNCTION("CProcessComm::Start()");
+	LOG_FUNCTION("CScheduling::Start()");
 
 	XC_ASSERT_RET_VAL(!m_hChn, ERR_MEMORY_EXCEPTION);
 	if ( GSMemComm_OpenChannel(&m_hChn, m_strSlaveName.c_str()) != GSMEMCOMM_SUCCESS )
@@ -115,7 +117,7 @@ EnumErrorCode CScheduling::Start(void)
 
 void CScheduling::Stop(void)
 {
-	LOG_FUNCTION("CProcessComm::Stop()");
+	LOG_FUNCTION("CScheduling::Stop()");
 
 	m_bShutDown = TRUE;
 
@@ -134,7 +136,7 @@ EnumErrorCode CScheduling::SendMsgToMaster( StruProCommData *pstProCommData )
 
 	if ( GSMemComm_SendMsg(m_hChn,pstProCommData->pData,pstProCommData->iLen) != GSMEMCOMM_SUCCESS )
 	{
-		TRACE_LOG("CProcessComm::HandleRequest() GSMemComm_SendMsg fail! slave name: "<<m_strSlaveName, LOGGER_LEVEL_ERROR, true);
+		TRACE_LOG("CScheduling::HandleRequest() GSMemComm_SendMsg fail! slave name: "<<m_strSlaveName, LOGGER_LEVEL_ERROR, true);
 		return ERR_CALL_INTERFACE_FAIL;
 	}
 

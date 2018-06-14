@@ -11,16 +11,25 @@
 
 #include "CommonHead.h"
 #include <queue>
+#include <vector>
 
 namespace XC
 {
+
 	struct StruDevData 
 	{
+		int iDevCodeid;
 		int iTemprature;
-		GSMutex cache_row_mutex;
-		GSTimeMeter upDateTime;
+		//GSMutex cache_row_mutex;
+
+		StruDevData()
+		{
+			
+		}
+		//	GSTimeMeter upDateTime;
 	};
 
+	
 	class CDevicePluginAccess
 	{
 	public:
@@ -56,6 +65,9 @@ namespace XC
 		void StopTimer( TimerHandle pTimerID );
 
 	private:
+
+		SystemInfo* m_sys;
+
 		// 日志
 		LogFunc m_pLog;
 
@@ -78,9 +90,9 @@ namespace XC
 		XCString m_strSlaveName;
 
 		//---定时跟新缓存
-		//TimerHandle m_pTimerID;
-		//static void OnTimeUpdateFunc( struct _SystemInfo* sys,TimerHandle timerID, void *pTimerParam );
-		//void UpdateCacheData(void);
+		TimerHandle m_pTimerID;
+		static void OnTimeUpdateFunc( struct _SystemInfo* sys,TimerHandle timerID, void *pTimerParam );
+		void UpdateCacheData(void);
 
 
 		//--处理Master请求线程
@@ -88,17 +100,34 @@ namespace XC
 		static void CALLBACK ThreadHandleRequestFunc( GSThread &thread, void *pThreadData );
 		void HandleMasterMsg( void );
 
+		GSThread m_ThreadUploadDBData;
+		static void CALLBACK ThreadUploadDBDataFunc( GSThread &thread, void *pThreadData );
+		void UploadDevDataToDB( void );
+
 		//跟新缓存
-		GSThread m_ThreadUpdateCache;
-		static void CALLBACK OnTimeUpdateFunc( GSThread &thread, void *pThreadData );
-		void UpdateCacheData( void );
+		//GSThread m_ThreadUpdateCache;
+		//static void CALLBACK OnTimeUpdateFunc( GSThread &thread, void *pThreadData );
+		//void UpdateCacheData( void );
 
 		//--处理检测命令队列超时
 		//GSThread m_ThreadCmdTimeOut;
 		//static void CALLBACK ThreadHandleCmdTimeOutFunc( GSThread &thread, void *pThreadData );
 		//void TestCmdTimeout( void );
 
-		StruDevData* m_devCacheData[MAX_SLAVE_DEVNUM];
+		static bool GreaterSort(StruDevData* a,StruDevData* b);
+
+		//--实时缓存
+		std::vector<StruDevData*> m_devCacheData;
+
+		//--时间点缓存
+		std::vector<StruDevData*> m_devCacheTimeData;
+		GSMutex m_csMutexDevTimeDataList;
+
+		bool IsDevCacheListEmpty(void)
+		{
+			GSAutoMutex csAuto(m_csMutexDevTimeDataList);
+			return m_devCacheTimeData.empty();
+		}
 
 		//-----------------
 		std::queue<StruProCommData> m_MasterRequstList;
@@ -140,6 +169,9 @@ namespace XC
 		}
 
 	private:
+		int iCurrTime;//当前小时数
+
+		void AddDevDataTimeCache(const StruDevData& _strDevData);
 
 		inline int DevCodeToIndex(int iDevCodeID);
 

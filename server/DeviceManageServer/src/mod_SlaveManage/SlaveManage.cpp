@@ -4,8 +4,7 @@ using namespace XC;
 
 CSlaveManage::CSlaveManage()
 {
-	m_bShutDown = TRUE;
-	m_vecSlaveHandle.reserve(MAX_SLAVE_NUM);
+	m_bShutDown = TRUE;	
 }
 
 CSlaveManage::~CSlaveManage()
@@ -23,7 +22,6 @@ void CSlaveManage::MessageCallback( GSMemCommHandle hChannel, void *pData, int i
 	TRACE_LOG("<recv msg: "<<pData<<", from"<<pThis->m_strSlaveName<<">", LOGGER_LEVEL_INFO, true);
 
 	pSlaveManage->AddData(pData, iLen);
-	
 }
 
 EnumErrorCode CSlaveManage::Init(SystemInfo* sys)
@@ -37,6 +35,7 @@ EnumErrorCode CSlaveManage::Init(SystemInfo* sys)
 	XC_ASSERT_RET_VAL(sys->notifyModMessage, ERR_MEMORY_EXCEPTION);
 	XC_ASSERT_RET_VAL(m_bShutDown, ERR_MEMORY_EXCEPTION);
 
+	m_sys = sys;
 	m_pLog = sys->log;
 	m_pSendMsg = sys->sendMsg;
 	m_pGetConfig = sys->getConfig;
@@ -60,6 +59,8 @@ void CSlaveManage::Uninit()
 EnumErrorCode CSlaveManage::Start()
 {
 	LOG_FUNCTION("CSlaveManage::Start()");
+
+	m_bShutDown = FALSE;
 	CleanupAliveSlave();   // 先清理当前路径所有活动slave进程
 
 	// 启动接收slave数据调度线程
@@ -131,12 +132,12 @@ EnumErrorCode CSlaveManage::HandleRequest( const MessageInfo& msg )
 	//slave调度算法
 	
 	int iSlaveIndex = XCStrUtil::ToNumber<int>(szDevCodeID) / MAX_SLAVE_DEVNUM;
-	CSlave* pSlave = m_vecSlaveHandle[iSlaveIndex - 1];
+	CSlave* pSlave = GetSlavePtr(iSlaveIndex);
 	
 	if (!pSlave)
 	{
 		TRACE_LOG("<没找到可调度的slave, 创建新slave"<<iSlaveIndex<<">", LOGGER_LEVEL_INFO, true);
-		CSlave *pSlave = new CSlave(XCStrUtil::ToString(iSlaveIndex));
+		pSlave = new CSlave(XCStrUtil::ToString(iSlaveIndex));
 		XCAbort(pSlave);
 		EnumErrorCode eRet = pSlave->Init();
 		if ( eRet != ERR_SUCCESS )
@@ -147,7 +148,7 @@ EnumErrorCode CSlaveManage::HandleRequest( const MessageInfo& msg )
 		}
 
 		GSAutoMutex csAuto(m_slaveVecMux);
-		m_vecSlaveHandle[iSlaveIndex - 1] = pSlave;
+		m_vecSlaveHandle.push_back(pSlave);
 	}
 	else
 	{
@@ -155,10 +156,10 @@ EnumErrorCode CSlaveManage::HandleRequest( const MessageInfo& msg )
 		{
 			TRACE_LOG("<调度的slave不在线, 稍候重试", LOGGER_LEVEL_ERROR, true);
 			return ERR_SERVER_BUSY;
-		}
-		pSlave->SendMsg((void *)msg.GetContent(),msg.GetContentSize());
+		}	
 	}
-	
+
+	pSlave->SendMsg((void *)msg.GetContent(),msg.GetContentSize());
 	return ERR_SUCCESS;
 }
 
@@ -183,7 +184,38 @@ void CSlaveManage::TestSlaveStatus( void )
 
 EnumErrorCode CSlaveManage::GetDevNumFromDB(int &SlaveNum)
 {
+	/*
+	GSIConnection *pDBConnect = NULL;
+	Int32 iErr = m_sys->getDBConnection(&pDBConnect);
+	if ( iErr )
+	{
+		TRACE_LOG(__FUNCTION__<<"getDBConnection fail! err:"<<iErr,LOGGER_LEVEL_ERROR,true);
+		return ERR_CONNECT_FAIL;
+	}
+
+	int iDevNum = 0;
+	XCString strSql = "SELECT COUNT(*) AS DEVNUM FROM TB_DEVINFO";
+	GSIRecordSet* pSet = pDBConnect->ExecuteQuery(strSql.c_str());
+	if (pSet)
+	{
+		
+		unsigned int availSize = 0;
+		pSet->GetValue("DEVNUM", &iDevNum, sizeof(int), &availSize, DT_INT32);
+		pDBConnect->ReleaseRecordSet(&pSet);
+	}
+	else
+	{
+		TRACE_LOG(__FUNCTION__<<" ExecuteQuery fail,sql: "<<strSql<<",Errcode: "<<pDBConnect->GetErrorCode()
+					<<",Errmsg: "<<pDBConnect->GetErrorMessage(),LOGGER_LEVEL_ERROR,true);
+		m_sys->releaseDBConnection(&pDBConnect);
+		return ERR_CALL_INTERFACE_FAIL;
+	}
+
+	m_sys->releaseDBConnection(&pDBConnect);
+	SlaveNum = iDevNum/MAX_SLAVE_DEVNUM;
+	*/
 	SlaveNum = 1;
+
 	return ERR_SUCCESS;
 }
 
@@ -191,8 +223,8 @@ void CSlaveManage::TimerFunc( struct _SystemInfo* sys,TimerHandle timerID, void 
 {
 	XC_ASSERT_RET(pTimerParam);
 	CSlaveManage *pThis = (CSlaveManage*)pTimerParam;
-
-	pThis->TestSlaveStatus();
+	if ( !pThis->m_bShutDown )
+		pThis->TestSlaveStatus();
 
 }
 
@@ -246,14 +278,8 @@ void CSlaveManage::HandleSlaveMsg( void )
 	void *pData = NULL;
 	Int32 iLen = 0;
 
-	while ( PopData(&pData,iLen) )
+	while ( !m_bShutDown && PopData(&pData,iLen) )
 	{
-		if ( m_bShutDown )
-		{
-			FreeData(pData);  
-			break;
-		}
-		
 		//Handle Response/Notify Message
 
 
@@ -283,18 +309,28 @@ void CSlaveManage::TraceOut( const XCString& strMsg, Int32 iLevel, bool bOnScree
 
 CSlave* CSlaveManage::GetSlavePtr( GSMemCommHandle hHandle )
 {
-	CSlave *p = NULL;
-
 	GSAutoMutex csAuto(m_slaveVecMux);
 	for ( SlaveList::iterator iter = m_vecSlaveHandle.begin();
 		iter != m_vecSlaveHandle.end();
 		iter ++ )
 	{
-		p = *iter;
-		if (hHandle == p->m_hChn)
-			break;;
+		if (hHandle == (*iter)->m_hChn)
+			return *iter;
 	}
-	return p;
+	return NULL;
+}
+
+CSlave* CSlaveManage::GetSlavePtr( int iSlaveIndex )
+{
+	GSAutoMutex csAuto(m_slaveVecMux);
+	for ( SlaveList::iterator iter = m_vecSlaveHandle.begin();
+		iter != m_vecSlaveHandle.end();
+		iter ++ )
+	{
+		if (XCStrUtil::ToString(iSlaveIndex) == (*iter)->m_strSlaveName)
+			return *iter;
+	}
+	return NULL;
 }
 
 void CSlaveManage::EventCallback( GSMemCommHandle hChannel, int iStatus, void *pUserData )
@@ -313,6 +349,11 @@ void CSlaveManage::EventCallback( GSMemCommHandle hChannel, int iStatus, void *p
 	case 1:  // 断开连接
 		TRACE_LOG("slave: "<<pThis->m_strSlaveName<<" 下线!",LOGGER_LEVEL_INFO,true);
 		pThis->SetSlaveStatus(SLAVE_OFFLINE);
+		//while ( pThis->Init() != ERR_SUCCESS )
+		//{
+		//	TRACE_LOG("TestSlaveStatus() Slave: "<<pThis->m_strSlaveName<<" 重新启动失败,待下次重试!",LOGGER_LEVEL_ERROR,true);
+		//	XCAssert(0);
+		//}
 		break;
 	case 2:  // 异常错误
 		TRACE_LOG("slave: "<<pThis->m_strSlaveName<<" 异常错误!",LOGGER_LEVEL_INFO,true);

@@ -2,7 +2,7 @@
 #define SLAVEMANAGE_DEF_H
 
 #include "SlaveServer.h"
-
+#include "GSDBAccessApi.h"
 #include <vector>
 #include <queue>
 
@@ -43,6 +43,8 @@ namespace XC
 		void StopTimer( TimerHandle pTimerID );
 
 	private:
+		SystemInfo *m_sys;
+
 		// »’÷æ
 		LogFunc m_pLog;
 
@@ -114,6 +116,7 @@ namespace XC
 		GSMutex m_slaveVecMux;
 		SlaveList m_vecSlaveHandle;
 		CSlave* GetSlavePtr( GSMemCommHandle hHandle );
+		CSlave* GetSlavePtr( int iSlaveIndex );
 
 
 		//---------------------
